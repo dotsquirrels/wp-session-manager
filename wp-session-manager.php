@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name: WP Session Manager
+ * Plugin Name: WP Session Manager Memcached
  * Plugin URI:  http://jumping-duck.com/wordpress/plugins
- * Description: Prototype session management for WordPress.
- * Version:     1.2.0
- * Author:      Eric Mann
+ * Description: Prototype session management for WordPress. Forked from WP Session Manager 1.2.0
+ * Version:     1.0.0
+ * Author:      Eric Mann, Dot Squirrels
  * Author URI:  http://eamann.com
  * License:     GPLv2+
  */
