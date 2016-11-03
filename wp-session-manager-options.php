@@ -74,9 +74,21 @@ add_action('admin_menu', 'wpsmm_options_page');
 function wpsmm_options_page_html() {
     if (!current_user_can('manage_options')) { return; }
     if (isset($_GET['settings-updated'])) {
-		add_settings_error('wpsmm_messages', 'wpsmm_message', __('Settings Saved', 'wpsmm'), 'updated');
+		$options = get_option('wpsmm_options');
+		if (!empty($options['wpsmm_field_active'])) {
+			if (!empty($options['wpsmm_field_server']) && !empty($options['wpsmm_field_port'])) {
+				if (!class_exists('Memcached')) {
+					wpsmm_admin_notice('Memcached PHP extension not installed. Memcached will not be used.', 'error');
+				} else {
+					wpsmm_admin_notice('Memcached storage activated!', 'success');
+				}
+			} else {
+				wpsmm_admin_notice('Memcached server and host not specified. Memcached will not be used.', 'error');
+			}
+		} else {
+			wpsmm_admin_notice('Memcached storage activated!', 'success');
+		}
     }
-	//settings_errors('wpsmm_messages');
     ?><div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
         <form action="options.php" method="post">
@@ -89,6 +101,12 @@ function wpsmm_options_page_html() {
             ?>
         </form>
     </div><?php
+}
+
+function wpsmm_admin_notice($message, $type='error') {
+	?><div class="notice notice-<?php echo $type; ?> is-dismissible">
+	  <p><?php echo __($message, 'wpsmm'); ?></p>
+	</div><?php
 }
 
 ?>

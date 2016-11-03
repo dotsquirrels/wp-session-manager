@@ -80,8 +80,14 @@ final class WP_Session extends Recursive_ArrayAccess {
 		$options = get_option('wpsmm_options');
 		if (!empty($options['wpsmm_field_active'])) {
 			if (!empty($options['wpsmm_field_server']) && !empty($options['wpsmm_field_port'])) {
-				$this->memcached = new Memcached;
-				$this->memcached->addServer($options['wpsmm_field_server'], $options['wpsmm_field_port']);
+				if (class_exists('Memcached')) {
+					$this->memcached = new Memcached;
+					$this->memcached->addServer($options['wpsmm_field_server'], $options['wpsmm_field_port']);
+					$status = $this->memcached->getStats();
+					if ($status['pid'] < 0) {
+						$this->memcached = false;
+					}
+				}
 			}
 		}
 
