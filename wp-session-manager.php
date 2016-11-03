@@ -32,4 +32,5 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 if ( ! class_exists( 'WP_Session' ) ) {
 	include 'includes/class-wp-session.php';
 	include 'includes/wp-session.php';
+	include 'wp-session-manager-options.php';
 }

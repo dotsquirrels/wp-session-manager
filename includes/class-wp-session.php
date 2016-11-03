@@ -41,6 +41,13 @@ final class WP_Session extends Recursive_ArrayAccess {
 	/**
 	 * Singleton instance.
 	 *
+	 * @var bool|Memcached
+	 */
+	protected $memcached = false;
+
+	/**
+	 * Singleton instance.
+	 *
 	 * @var bool|WP_Session
 	 */
 	private static $instance = false;
@@ -69,6 +76,15 @@ final class WP_Session extends Recursive_ArrayAccess {
 	 * @uses apply_filters Calls `wp_session_expiration` to determine how long until sessions expire.
 	 */
 	protected function __construct() {
+
+		$options = get_option('wpsmm_options');
+		if (!empty($options['wpsmm_field_active'])) {
+			if (!empty($options['wpsmm_field_server']) && !empty($options['wpsmm_field_port'])) {
+				$this->memcached = new Memcached;
+				$this->memcached->addServer($options['wpsmm_field_server'], $options['wpsmm_field_port']);
+			}
+		}
+
 		if ( isset( $_COOKIE[WP_SESSION_COOKIE] ) ) {
 			$cookie = stripslashes( $_COOKIE[WP_SESSION_COOKIE] );
 			$cookie_crumbs = explode( '||', $cookie );
@@ -80,8 +96,7 @@ final class WP_Session extends Recursive_ArrayAccess {
 			// Update the session expiration if we're past the variant time
 			if ( time() > $this->exp_variant ) {
 				$this->set_expiration();
-				delete_option( "_wp_session_expires_{$this->session_id}" );
-				add_option( "_wp_session_expires_{$this->session_id}", $this->expires, '', 'no' );
+				$this->renew_session();
 			}
 		} else {
 			$this->session_id = WP_Session_Utils::generate_id();
@@ -92,6 +107,49 @@ final class WP_Session extends Recursive_ArrayAccess {
 
 		$this->set_cookie();
 
+	}
+
+	/**
+	* Wrappers to fetch, store or delete session in DB or Memcached
+     	*/
+	protected function get_session() {
+		if ($this->memcached) {
+			$this->container = $this->memcached->get("_wp_session_{$this->session_id}");
+		} else {
+			$this->container = get_option("_wp_session_{$this->session_id}", array());
+		}
+	}
+	protected function add_session() {
+		if ($this->memcached) {
+			$this->memcached->set("_wp_session_{$this->session_id}", $this->container, false, $this->expires);
+		} else {
+			add_option("_wp_session_{$this->session_id}", $this->container, '', 'no');
+			add_option("_wp_session_expires_{$this->session_id}", $this->expires, '', 'no');
+		}
+	}
+	protected function renew_session() {
+		if ($this->memcached) {
+			$this->memcached->set("_wp_session_{$this->session_id}", $this->container, false, $this->expires);
+		} else {
+			delete_option("_wp_session_expires_{$this->session_id}");
+			add_option("_wp_session_expires_{$this->session_id}", $this->expires, '', 'no');
+		}
+	}
+	protected function update_session() {
+		if ($this->memcached) {
+			$this->memcached->set("_wp_session_{$this->session_id}", $this->container, false, $this->expires);
+		} else {
+			delete_option( "_wp_session_{$this->session_id}" );
+			add_option( "_wp_session_{$this->session_id}", $this->container, '', 'no' );
+		}
+	}
+	protected function kill_session() {
+		if ($this->memcached) {
+			$this->memcached->delete("_wp_session_{$this->session_id}");
+		} else {
+			delete_option("_wp_session_expires_{$this->session_id}");
+			delete_option("_wp_session_{$this->session_id}");
+		}
 	}
 
 	/**
@@ -136,7 +194,7 @@ final class WP_Session extends Recursive_ArrayAccess {
 	 * @return array
 	 */
 	protected function read_data() {
-		$this->container = get_option( "_wp_session_{$this->session_id}", array() );
+		$this->get_session();
 
 		return $this->container;
 	}
@@ -148,11 +206,9 @@ final class WP_Session extends Recursive_ArrayAccess {
 		$option_key = "_wp_session_{$this->session_id}";
 		
 		if ( false === get_option( $option_key ) ) {
-			add_option( "_wp_session_{$this->session_id}", $this->container, '', 'no' );
-			add_option( "_wp_session_expires_{$this->session_id}", $this->expires, '', 'no' );
+			$this->add_session();
 		} else {
-			delete_option( "_wp_session_{$this->session_id}" );
-			add_option( "_wp_session_{$this->session_id}", $this->container, '', 'no' );
+			$this->update_session();
 		}
 	}
 
@@ -190,7 +246,7 @@ final class WP_Session extends Recursive_ArrayAccess {
 	 */
 	public function regenerate_id( $delete_old = false ) {
 		if ( $delete_old ) {
-			delete_option( "_wp_session_{$this->session_id}" );
+			$this->kill_session();
 		}
 
 		$this->session_id = WP_Session_Utils::generate_id();
